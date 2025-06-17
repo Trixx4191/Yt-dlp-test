@@ -1,45 +1,39 @@
 from flask import Flask, request, jsonify
-import subprocess
-import json
+import yt_dlp
 import os
 
 app = Flask(__name__)
 
 @app.route("/download", methods=["POST"])
 def download():
-    data = request.get_json()
-    url = data.get("url")
+    url = request.json.get("url")
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
-    try:
-        result = subprocess.run(
-            ["yt-dlp", "-j", url],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        info = json.loads(result.stdout)
-        if not info.get("url"):
-            return jsonify({"error": "Could not extract video URL"}), 500
+    options = {
+        "quiet": True,
+        "cookiefile": "youtube_cookies.txt",  # Make sure this file is uploaded with the build
+        "skip_download": True,
+        "forcejson": True,
+        "extract_flat": False,
+        "format": "best[ext=mp4]/best",
+    }
 
-        return jsonify({
-            "title": info.get("title"),
-            "download_url": info.get("url"),
-            "ext": info.get("ext"),
-            "thumbnail": info.get("thumbnail"),
-            "duration": info.get("duration")
-        })
-    except subprocess.CalledProcessError as e:
-        return jsonify({
-            "error": "yt-dlp failed",
-            "details": e.stderr.strip()
-        }), 500
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+            # Check formats for a downloadable URL
+            formats = info.get("formats", [])
+            mp4_format = next((f for f in formats if f.get("ext") == "mp4" and f.get("url")), None)
+
+            if mp4_format:
+                return jsonify({"download_url": mp4_format["url"]})
+            else:
+                return jsonify({"error": "MP4 format not found in available formats."}), 500
+
     except Exception as e:
-        return jsonify({
-            "error": "Unexpected server error",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": "yt-dlp failed", "details": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
