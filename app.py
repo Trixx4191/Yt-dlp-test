@@ -12,7 +12,7 @@ def download():
 
     options = {
         "quiet": True,
-        "cookiefile": "youtube_cookies.txt",  # Make sure this file is uploaded with the build
+        "cookiefile": "cookies.txt",  # Make sure this file is uploaded with the build
         "skip_download": True,
         "forcejson": True,
         "extract_flat": False,
